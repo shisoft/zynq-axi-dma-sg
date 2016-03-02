@@ -19,7 +19,7 @@ It is tested and runs without problems on a Parallella board with Zynq 7020 (und
 Compile it native under Linux ARM with 
 
 ```
-gcc -Wall -o axidma axidma.c
+gcc -Wall -o zynq-axi-dma-sg zynq-axi-dma-sg.c
 ```
 
 *Note: because of the memory map with /dev/mem it can only run as root.*
@@ -53,7 +53,7 @@ DATA		0x4040_0000		64K		0x4040_FFFF
 Start the transfer with:
 
 ```bash
-taskset -c 1 ./axitest
+taskset -1 ./zynq-axi-dma-sg
 ```
 
 The `taskset -c 1` advises the kernel to use the second core for the task. Especially for massive memory mapped operations this results in at least 10% higher performance. 

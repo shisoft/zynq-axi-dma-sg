@@ -19,7 +19,7 @@
 
 
 /* 
-
+        
 from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/documentation/ip_documentation/axi_dma/v7_1/pg021_axi_dma.pdf
 
 1. Write the address of the starting descriptor to the Current Descriptor register. If AXI DMA is configured for an address space greater than 32, then also program the MSB 32 bits of the current descriptor.
@@ -33,15 +33,24 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
         
 /*********************************************************************/
 /*                       define mmap locations                       */
+/*          consult the README for the exact memory layout           */
 /*********************************************************************/
 
-#define AXI_DMA_REGISTER_LOCATION 		0x40400000
-#define DMA_LOWER_BUFFER_MEM_ADDRESS 	0x20000000
-#define DMA_UPPER_BUFFER_MEM_ADDRESS 	0x2F000000
-#define DESCRIPTOR_MMAP_LOCATION 		0x1F000000
-#define DESCRIPTOR_REGISTERS_SIZE 		0x7FFF
-#define BUFFER_BLOCK_WIDTH 				0xFA00
-#define NUM_OF_DESCRIPTORS 				0xA
+#define	AXI_DMA_REGISTER_LOCATION          0x40400000		//AXI DMA Register Address Map
+#define	DESCRIPTOR_REGISTERS_SIZE          0xFFFF
+#define	SG_DMA_DESCRIPTORS_WIDTH           0xFFFF
+#define	MEMBLOCK_WIDTH                     0x3FFFFFF		//size of mem used by s2mm and mm2s
+#define	BUFFER_BLOCK_WIDTH                 0x7D0000		//size of memory block per descriptor in bytes
+#define	NUM_OF_DESCRIPTORS                 0x7		//number of descriptors for each direction
+
+#define	HP0_DMA_BUFFER_MEM_ADDRESS         0x20000000
+#define	HP0_MM2S_DMA_BASE_MEM_ADDRESS      (HP0_DMA_BUFFER_MEM_ADDRESS)
+#define	HP0_S2MM_DMA_BASE_MEM_ADDRESS      (HP0_DMA_BUFFER_MEM_ADDRESS + MEMBLOCK_WIDTH + 1)
+#define	HP0_MM2S_DMA_DESCRIPTORS_ADDRESS   (HP0_MM2S_DMA_BASE_MEM_ADDRESS)
+#define	HP0_S2MM_DMA_DESCRIPTORS_ADDRESS   (HP0_S2MM_DMA_BASE_MEM_ADDRESS)
+#define	HP0_MM2S_SOURCE_MEM_ADDRESS        (HP0_MM2S_DMA_BASE_MEM_ADDRESS + SG_DMA_DESCRIPTORS_WIDTH + 1)
+#define	HP0_S2MM_TARGET_MEM_ADDRESS        (HP0_S2MM_DMA_BASE_MEM_ADDRESS + SG_DMA_DESCRIPTORS_WIDTH + 1)
+
 
 /*********************************************************************/
 /*                   define all register locations                   */
@@ -49,7 +58,7 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
 /*********************************************************************/
 
 
-// MM2S CONTROL
+        // MM2S CONTROL
 #define MM2S_CONTROL_REGISTER       0x00    // MM2S_DMACR
 #define MM2S_STATUS_REGISTER        0x04    // MM2S_DMASR
 #define MM2S_CURDESC                0x08    // must align 0x40 addresses
@@ -67,7 +76,7 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
 #define S2MM_TAILDESC               0x40    // must align 0x40 addresses
 #define S2MM_TAILDESC_MSB           0x44    // unused with 32bit addresses
 
-int main() {
+    int main() {
 
 	unsigned int* axi_dma_register_mmap;
 	unsigned int* mm2s_descriptor_register_mmap;
@@ -90,10 +99,10 @@ int main() {
 
 	int dh = open("/dev/mem", O_RDWR | O_SYNC); 
 	axi_dma_register_mmap = mmap(NULL, DESCRIPTOR_REGISTERS_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, dh, AXI_DMA_REGISTER_LOCATION);
-	mm2s_descriptor_register_mmap = mmap(NULL, DESCRIPTOR_REGISTERS_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, dh, DESCRIPTOR_MMAP_LOCATION);
-	s2mm_descriptor_register_mmap = mmap(NULL, DESCRIPTOR_REGISTERS_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, dh, DESCRIPTOR_MMAP_LOCATION + DESCRIPTOR_REGISTERS_SIZE + 1);
-	source_mem_map = mmap(NULL, BUFFER_BLOCK_WIDTH * NUM_OF_DESCRIPTORS, PROT_READ | PROT_WRITE, MAP_SHARED, dh, (off_t)(DMA_LOWER_BUFFER_MEM_ADDRESS));
-	dest_mem_map = mmap(NULL, BUFFER_BLOCK_WIDTH * NUM_OF_DESCRIPTORS, PROT_READ | PROT_WRITE, MAP_SHARED, dh, (off_t)(DMA_UPPER_BUFFER_MEM_ADDRESS));
+	mm2s_descriptor_register_mmap = mmap(NULL, DESCRIPTOR_REGISTERS_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, dh, HP0_MM2S_DMA_DESCRIPTORS_ADDRESS);
+	s2mm_descriptor_register_mmap = mmap(NULL, DESCRIPTOR_REGISTERS_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, dh, HP0_S2MM_DMA_DESCRIPTORS_ADDRESS);
+	source_mem_map = mmap(NULL, BUFFER_BLOCK_WIDTH * NUM_OF_DESCRIPTORS, PROT_READ | PROT_WRITE, MAP_SHARED, dh, (off_t)(HP0_MM2S_SOURCE_MEM_ADDRESS));
+	dest_mem_map = mmap(NULL, BUFFER_BLOCK_WIDTH * NUM_OF_DESCRIPTORS, PROT_READ | PROT_WRITE, MAP_SHARED, dh, (off_t)(HP0_S2MM_TARGET_MEM_ADDRESS));
 	int i;
 	
 	// fill mm2s-register memory with zeros
@@ -140,94 +149,70 @@ int main() {
 	/*                         [2]: buffer addr                          */
 	/*********************************************************************/
 
-	mm2s_current_descriptor_address = 0x1F000000; // save current descriptor address
+	mm2s_current_descriptor_address = HP0_MM2S_DMA_DESCRIPTORS_ADDRESS; // save current descriptor address
 
-	mm2s_descriptor_register_mmap[0x0 >> 2] = 0x1F000040; // set next descriptor address
-	mm2s_descriptor_register_mmap[0x8 >> 2] = 0x20000000; // set target buffer address
-	mm2s_descriptor_register_mmap[0x18 >> 2] = 0x800FA00; // set mm2s/s2mm buffer length to control register
+	mm2s_descriptor_register_mmap[0x0 >> 2] = HP0_MM2S_DMA_DESCRIPTORS_ADDRESS + 0x40; // set next descriptor address
+	mm2s_descriptor_register_mmap[0x8 >> 2] = HP0_MM2S_SOURCE_MEM_ADDRESS + 0x0; // set target buffer address
+	mm2s_descriptor_register_mmap[0x18 >> 2] = 0x87D0000; // set mm2s/s2mm buffer length to control register
 
-	mm2s_descriptor_register_mmap[0x40 >> 2] = 0x1F000080; // set next descriptor address
-	mm2s_descriptor_register_mmap[0x48 >> 2] = 0x2000FA00; // set target buffer address
-	mm2s_descriptor_register_mmap[0x58 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	mm2s_descriptor_register_mmap[0x40 >> 2] = HP0_MM2S_DMA_DESCRIPTORS_ADDRESS + 0x80; // set next descriptor address
+	mm2s_descriptor_register_mmap[0x48 >> 2] = HP0_MM2S_SOURCE_MEM_ADDRESS + 0x7D0000; // set target buffer address
+	mm2s_descriptor_register_mmap[0x58 >> 2] = 0x7D0000; // set mm2s/s2mm buffer length to control register
 
-	mm2s_descriptor_register_mmap[0x80 >> 2] = 0x1F0000C0; // set next descriptor address
-	mm2s_descriptor_register_mmap[0x88 >> 2] = 0x2001F400; // set target buffer address
-	mm2s_descriptor_register_mmap[0x98 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	mm2s_descriptor_register_mmap[0x80 >> 2] = HP0_MM2S_DMA_DESCRIPTORS_ADDRESS + 0xC0; // set next descriptor address
+	mm2s_descriptor_register_mmap[0x88 >> 2] = HP0_MM2S_SOURCE_MEM_ADDRESS + 0xFA0000; // set target buffer address
+	mm2s_descriptor_register_mmap[0x98 >> 2] = 0x7D0000; // set mm2s/s2mm buffer length to control register
 
-	mm2s_descriptor_register_mmap[0xC0 >> 2] = 0x1F000100; // set next descriptor address
-	mm2s_descriptor_register_mmap[0xC8 >> 2] = 0x2002EE00; // set target buffer address
-	mm2s_descriptor_register_mmap[0xD8 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	mm2s_descriptor_register_mmap[0xC0 >> 2] = HP0_MM2S_DMA_DESCRIPTORS_ADDRESS + 0x100; // set next descriptor address
+	mm2s_descriptor_register_mmap[0xC8 >> 2] = HP0_MM2S_SOURCE_MEM_ADDRESS + 0x1770000; // set target buffer address
+	mm2s_descriptor_register_mmap[0xD8 >> 2] = 0x7D0000; // set mm2s/s2mm buffer length to control register
 
-	mm2s_descriptor_register_mmap[0x100 >> 2] = 0x1F000140; // set next descriptor address
-	mm2s_descriptor_register_mmap[0x108 >> 2] = 0x2003E800; // set target buffer address
-	mm2s_descriptor_register_mmap[0x118 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	mm2s_descriptor_register_mmap[0x100 >> 2] = HP0_MM2S_DMA_DESCRIPTORS_ADDRESS + 0x140; // set next descriptor address
+	mm2s_descriptor_register_mmap[0x108 >> 2] = HP0_MM2S_SOURCE_MEM_ADDRESS + 0x1F40000; // set target buffer address
+	mm2s_descriptor_register_mmap[0x118 >> 2] = 0x7D0000; // set mm2s/s2mm buffer length to control register
 
-	mm2s_descriptor_register_mmap[0x140 >> 2] = 0x1F000180; // set next descriptor address
-	mm2s_descriptor_register_mmap[0x148 >> 2] = 0x2004E200; // set target buffer address
-	mm2s_descriptor_register_mmap[0x158 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	mm2s_descriptor_register_mmap[0x140 >> 2] = HP0_MM2S_DMA_DESCRIPTORS_ADDRESS + 0x180; // set next descriptor address
+	mm2s_descriptor_register_mmap[0x148 >> 2] = HP0_MM2S_SOURCE_MEM_ADDRESS + 0x2710000; // set target buffer address
+	mm2s_descriptor_register_mmap[0x158 >> 2] = 0x7D0000; // set mm2s/s2mm buffer length to control register
 
-	mm2s_descriptor_register_mmap[0x180 >> 2] = 0x1F0001C0; // set next descriptor address
-	mm2s_descriptor_register_mmap[0x188 >> 2] = 0x2005DC00; // set target buffer address
-	mm2s_descriptor_register_mmap[0x198 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	mm2s_descriptor_register_mmap[0x180 >> 2] = 0x00; // set next descriptor address (unused?)
+	mm2s_descriptor_register_mmap[0x188 >> 2] = HP0_MM2S_SOURCE_MEM_ADDRESS + 0x2EE0000; // set target buffer address
+	mm2s_descriptor_register_mmap[0x198 >> 2] = 0x47D0000; // set mm2s/s2mm buffer length to control register
 
-	mm2s_descriptor_register_mmap[0x1C0 >> 2] = 0x1F000200; // set next descriptor address
-	mm2s_descriptor_register_mmap[0x1C8 >> 2] = 0x2006D600; // set target buffer address
-	mm2s_descriptor_register_mmap[0x1D8 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
-
-	mm2s_descriptor_register_mmap[0x200 >> 2] = 0x1F000240; // set next descriptor address
-	mm2s_descriptor_register_mmap[0x208 >> 2] = 0x2007D000; // set target buffer address
-	mm2s_descriptor_register_mmap[0x218 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
-
-	mm2s_descriptor_register_mmap[0x240 >> 2] = 0x00; // set next descriptor address (unused?)
-	mm2s_descriptor_register_mmap[0x248 >> 2] = 0x2008CA00; // set target buffer address
-	mm2s_descriptor_register_mmap[0x258 >> 2] = 0x400FA00; // set mm2s/s2mm buffer length to control register
-
-	mm2s_tail_descriptor_address = 0x1F000240 ; // save tail descriptor address
+	mm2s_tail_descriptor_address = HP0_MM2S_DMA_DESCRIPTORS_ADDRESS + 0x180 ; // save tail descriptor address
 
 
-	s2mm_current_descriptor_address = 0x1F008000; // save current descriptor address
+	s2mm_current_descriptor_address = HP0_S2MM_DMA_DESCRIPTORS_ADDRESS; // save current descriptor address
 
-	s2mm_descriptor_register_mmap[0x0 >> 2] = 0x1F008040; // set next descriptor address
-	s2mm_descriptor_register_mmap[0x8 >> 2] = 0x2F000000; // set target buffer address
-	s2mm_descriptor_register_mmap[0x18 >> 2] = 0x800FA00; // set mm2s/s2mm buffer length to control register
+	s2mm_descriptor_register_mmap[0x0 >> 2] = HP0_S2MM_DMA_DESCRIPTORS_ADDRESS + 0x40; // set next descriptor address
+	s2mm_descriptor_register_mmap[0x8 >> 2] = HP0_S2MM_TARGET_MEM_ADDRESS + 0x0; // set target buffer address
+	s2mm_descriptor_register_mmap[0x18 >> 2] = 0x87D0000; // set mm2s/s2mm buffer length to control register
 
-	s2mm_descriptor_register_mmap[0x40 >> 2] = 0x1F008080; // set next descriptor address
-	s2mm_descriptor_register_mmap[0x48 >> 2] = 0x2F00FA00; // set target buffer address
-	s2mm_descriptor_register_mmap[0x58 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	s2mm_descriptor_register_mmap[0x40 >> 2] = HP0_S2MM_DMA_DESCRIPTORS_ADDRESS + 0x80; // set next descriptor address
+	s2mm_descriptor_register_mmap[0x48 >> 2] = HP0_S2MM_TARGET_MEM_ADDRESS + 0x7D0000; // set target buffer address
+	s2mm_descriptor_register_mmap[0x58 >> 2] = 0x7D0000; // set mm2s/s2mm buffer length to control register
 
-	s2mm_descriptor_register_mmap[0x80 >> 2] = 0x1F0080C0; // set next descriptor address
-	s2mm_descriptor_register_mmap[0x88 >> 2] = 0x2F01F400; // set target buffer address
-	s2mm_descriptor_register_mmap[0x98 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	s2mm_descriptor_register_mmap[0x80 >> 2] = HP0_S2MM_DMA_DESCRIPTORS_ADDRESS + 0xC0; // set next descriptor address
+	s2mm_descriptor_register_mmap[0x88 >> 2] = HP0_S2MM_TARGET_MEM_ADDRESS + 0xFA0000; // set target buffer address
+	s2mm_descriptor_register_mmap[0x98 >> 2] = 0x7D0000; // set mm2s/s2mm buffer length to control register
 
-	s2mm_descriptor_register_mmap[0xC0 >> 2] = 0x1F008100; // set next descriptor address
-	s2mm_descriptor_register_mmap[0xC8 >> 2] = 0x2F02EE00; // set target buffer address
-	s2mm_descriptor_register_mmap[0xD8 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	s2mm_descriptor_register_mmap[0xC0 >> 2] = HP0_S2MM_DMA_DESCRIPTORS_ADDRESS + 0x100; // set next descriptor address
+	s2mm_descriptor_register_mmap[0xC8 >> 2] = HP0_S2MM_TARGET_MEM_ADDRESS + 0x1770000; // set target buffer address
+	s2mm_descriptor_register_mmap[0xD8 >> 2] = 0x7D0000; // set mm2s/s2mm buffer length to control register
 
-	s2mm_descriptor_register_mmap[0x100 >> 2] = 0x1F008140; // set next descriptor address
-	s2mm_descriptor_register_mmap[0x108 >> 2] = 0x2F03E800; // set target buffer address
-	s2mm_descriptor_register_mmap[0x118 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	s2mm_descriptor_register_mmap[0x100 >> 2] = HP0_S2MM_DMA_DESCRIPTORS_ADDRESS + 0x140; // set next descriptor address
+	s2mm_descriptor_register_mmap[0x108 >> 2] = HP0_S2MM_TARGET_MEM_ADDRESS + 0x1F40000; // set target buffer address
+	s2mm_descriptor_register_mmap[0x118 >> 2] = 0x7D0000; // set mm2s/s2mm buffer length to control register
 
-	s2mm_descriptor_register_mmap[0x140 >> 2] = 0x1F008180; // set next descriptor address
-	s2mm_descriptor_register_mmap[0x148 >> 2] = 0x2F04E200; // set target buffer address
-	s2mm_descriptor_register_mmap[0x158 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	s2mm_descriptor_register_mmap[0x140 >> 2] = HP0_S2MM_DMA_DESCRIPTORS_ADDRESS + 0x180; // set next descriptor address
+	s2mm_descriptor_register_mmap[0x148 >> 2] = HP0_S2MM_TARGET_MEM_ADDRESS + 0x2710000; // set target buffer address
+	s2mm_descriptor_register_mmap[0x158 >> 2] = 0x7D0000; // set mm2s/s2mm buffer length to control register
 
-	s2mm_descriptor_register_mmap[0x180 >> 2] = 0x1F0081C0; // set next descriptor address
-	s2mm_descriptor_register_mmap[0x188 >> 2] = 0x2F05DC00; // set target buffer address
-	s2mm_descriptor_register_mmap[0x198 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
+	s2mm_descriptor_register_mmap[0x180 >> 2] = 0x00; // set next descriptor address (unused?)
+	s2mm_descriptor_register_mmap[0x188 >> 2] = HP0_S2MM_TARGET_MEM_ADDRESS + 0x2EE0000; // set target buffer address
+	s2mm_descriptor_register_mmap[0x198 >> 2] = 0x47D0000; // set mm2s/s2mm buffer length to control register
 
-	s2mm_descriptor_register_mmap[0x1C0 >> 2] = 0x1F008200; // set next descriptor address
-	s2mm_descriptor_register_mmap[0x1C8 >> 2] = 0x2F06D600; // set target buffer address
-	s2mm_descriptor_register_mmap[0x1D8 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
-
-	s2mm_descriptor_register_mmap[0x200 >> 2] = 0x1F008240; // set next descriptor address
-	s2mm_descriptor_register_mmap[0x208 >> 2] = 0x2F07D000; // set target buffer address
-	s2mm_descriptor_register_mmap[0x218 >> 2] = 0xFA00; // set mm2s/s2mm buffer length to control register
-
-	s2mm_descriptor_register_mmap[0x240 >> 2] = 0x00; // set next descriptor address (unused?)
-	s2mm_descriptor_register_mmap[0x248 >> 2] = 0x2F08CA00; // set target buffer address
-	s2mm_descriptor_register_mmap[0x258 >> 2] = 0x400FA00; // set mm2s/s2mm buffer length to control register
-
-	s2mm_tail_descriptor_address = 0x1F008240 ; // save tail descriptor address
+	s2mm_tail_descriptor_address = HP0_S2MM_DMA_DESCRIPTORS_ADDRESS + 0x180 ; // save tail descriptor address
 
 
 	/*********************************************************************/

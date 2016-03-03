@@ -82,7 +82,7 @@ S2MM_STATUS_REGISTER status register values:
  running SGIncld
 ```
 
-After ~90 times it should finish with the success message:
+After ~6600 times it should finish with the success message:
 
 ```cpp
 Memory-mapped to stream status (0x0001100a@0x04):
@@ -94,8 +94,6 @@ S2MM_STATUS_REGISTER status register values:
 ```
 
 In both channels, the status register `idle` (bit 1) and `ÌOC_Irq` (bit 12) are set. This means the engine passed the tail descriptor without errors and fired the `IRQ on complete`. If there is only one process communicating with the AXI engine, there is no need to manually halt the engine.  
-
-*Note: According to the Xilinx LogiCore documentation, the MM2S side is faster. In this configuration (blockwidth, length of chain) the stream to memory mapped transfers need 10% more time to finish the transfers.*
 
 
 ## Performance

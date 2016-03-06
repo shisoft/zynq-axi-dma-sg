@@ -102,6 +102,8 @@ This sample transfers 7 frames with 4096000 Bytes (~4MByte) each from memory to 
 
 It takes between 0.071754 and 0.071772 sec to complete both processes. This means that in total it reads and writes with a bandwidth of 799 MByte/s each. According to the Xilinx documentation **LogiCORE IP Product Guide** (page 9) the theoretical limit of AXI Stream is close to 400MByte. It is unclear where the difference come from.
 
+Some tests to use multiple interfaces (there are up to four available, both for S2MM and MM2S) result in no higher performance. The limit (at least on the parallella board) could be 800 MByte/s if both directions are used, which means 1.6 GByte/s or 12.8 Gbit/s.  
+
 
 ## Notes
 

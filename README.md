@@ -98,7 +98,7 @@ In both channels, the status register `idle` (bit 1) and `ÌOC_Irq` (bit 12) are
 
 ## Performance
 
-This sample transfers 7 frames with 4096000 Bytes (~4MByte) each from memory to the FPGA and writes the received data back to a different memory address.
+This sample transfers 7 frames with 8192000 Bytes (~8MByte) each from memory to the FPGA and writes the received data back to a different memory address.
 
 It takes between 0.071754 and 0.071772 sec to complete both processes. This means that in total it reads and writes with a bandwidth of 799 MByte/s each. According to the Xilinx documentation **LogiCORE IP Product Guide** (page 9) the theoretical limit of AXI Stream is close to 400MByte. It is unclear where the difference come from.
 

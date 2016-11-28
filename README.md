@@ -107,7 +107,7 @@ Some tests to use multiple interfaces (there are up to four available, both for 
 
 ## Initiate Scatter/Gather via a lib call
 
-Under [libcallfpga](https://github.com/OpenDGPS/zynq-axi-dma-sg/libcallfpga) you'll find a simple nodejs implenetation to initiate the memory transfer via a library call. It is minor changed to propagate a function called callfpga instead of the main func. Compile it by 
+Under [libcallfpga](https://github.com/OpenDGPS/zynq-axi-dma-sg/tree/master/libcallfpga) you'll find a simple nodejs implementation to initiate the memory transfer via a library call. It is minor changed to propagate a function called callfpga instead of the main func. Compile it by 
 
 ```bash
 gcc -fPIC -c zynq-axi-dma-sg.c

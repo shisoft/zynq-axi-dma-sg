@@ -122,9 +122,9 @@ node libcall.js
 
 Based on the perfomance measurement it is possible to implement a matrix multiplication on the PL part which is able to calculate more than four million 8x8 (8bit int) matrizes or even eight million 4x4 (16bit int) in a second. This is because on each scatter/gather cycle there are 1024 bit available which can represent two matrizes with 8x8 on 8bit width. 
 
-The PL clock is usually around 200MHz. And between every available input there are around 6000 clock cycles for a calculation pipeline. Let assume you have to additional calculations like matrix addition it is possible to store one matrix result in one part of target memory and the second result in the other part.
+The PL clock is usually around 200MHz. And between every available input there are around 6000 clock cycles for a calculation pipeline. Let assume you have additional calculations like matrix addition it is possible to store one matrix result in one part of target memory and the second result in the other part.
 
-Always be prepaired that there is a misalignment between read and write memory address. Which means you'll find garbage in the first 1024 bit of the target memory. This is because of the deferral between reading and writing the memory.  
+Always be prepared that there is a misalignment between read and write memory address. Which means you'll find garbage in the first 1024 bit of the target memory. This is because of the deferral between reading and writing the memory.  
 
 
 ## Notes

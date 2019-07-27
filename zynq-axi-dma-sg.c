@@ -1,4 +1,3 @@
-
 /*********************************************************************/
 /*                 TRANSFER MEMORY TO ZYNQ PL (MM2S)                 */
 /*                 AND FROM ZYNQ PL TO MEMORY (S2MM)                 */
@@ -43,7 +42,7 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
 #define	BUFFER_BLOCK_WIDTH                 0x7D0000		//size of memory block per descriptor in bytes
 #define	NUM_OF_DESCRIPTORS                 0x7		//number of descriptors for each direction
 
-#define	HP0_DMA_BUFFER_MEM_ADDRESS         0x20000000
+#define	HP0_DMA_BUFFER_MEM_ADDRESS         0x30000000
 #define	HP0_MM2S_DMA_BASE_MEM_ADDRESS      (HP0_DMA_BUFFER_MEM_ADDRESS)
 #define	HP0_S2MM_DMA_BASE_MEM_ADDRESS      (HP0_DMA_BUFFER_MEM_ADDRESS + MEMBLOCK_WIDTH + 1)
 #define	HP0_MM2S_DMA_DESCRIPTORS_ADDRESS   (HP0_MM2S_DMA_BASE_MEM_ADDRESS)
@@ -76,8 +75,9 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
 #define S2MM_TAILDESC               0x40    // must align 0x40 addresses
 #define S2MM_TAILDESC_MSB           0x44    // unused with 32bit addresses
 
-    int main() {
-
+int main() {
+	
+	printf("Entering main");
 	unsigned int* axi_dma_register_mmap;
 	unsigned int* mm2s_descriptor_register_mmap;
 	unsigned int* s2mm_descriptor_register_mmap;
@@ -97,6 +97,7 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
 	/*            address editor tab ("open block diagramm")             */
 	/*********************************************************************/
 
+	printf("Mapping memory spaces");
 	int dh = open("/dev/mem", O_RDWR | O_SYNC); 
 	axi_dma_register_mmap = mmap(NULL, DESCRIPTOR_REGISTERS_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, dh, AXI_DMA_REGISTER_LOCATION);
 	mm2s_descriptor_register_mmap = mmap(NULL, DESCRIPTOR_REGISTERS_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, dh, HP0_MM2S_DMA_DESCRIPTORS_ADDRESS);
@@ -105,33 +106,32 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
 	dest_mem_map = mmap(NULL, BUFFER_BLOCK_WIDTH * NUM_OF_DESCRIPTORS, PROT_READ | PROT_WRITE, MAP_SHARED, dh, (off_t)(HP0_S2MM_TARGET_MEM_ADDRESS));
 	int i;
 	
-	// fill mm2s-register memory with zeros
+	printf("fill mm2s-register memory with zeros");
 	for (i = 0; i < DESCRIPTOR_REGISTERS_SIZE; i++) {
 		char *p = (char *)mm2s_descriptor_register_mmap;
 		p[i] = 0x00000000;
 	}
 
-	// fill s2mm-register memory with zeros
+	printf("fill s2mm-register memory with zeros");
     for (i = 0; i < DESCRIPTOR_REGISTERS_SIZE; i++) {
 		char *p = (char *)s2mm_descriptor_register_mmap;
 		p[i] = 0x00000000;
 	}
 	
-	// fill source memory with a counter value
+	printf("fill source memory with a counter value");
 	for (i = 0; i < (BUFFER_BLOCK_WIDTH / 4) * NUM_OF_DESCRIPTORS; i++) {
 		unsigned int *p = source_mem_map;
 		p[i] = 0x00000000 + i; 
 	}
 
-	// fill target memory with zeros
+	printf("fill target memory with zeros");
     for (i = 0; i < (BUFFER_BLOCK_WIDTH / 4) * NUM_OF_DESCRIPTORS; i++) {
 		unsigned int *p = dest_mem_map;
 		p[i] = 0xffffffff;
 	}
 	
-
-
-        
+	
+    printf("Resetting DMA");
 	/*********************************************************************/
 	/*                 reset and halt all dma operations                 */
 	/*********************************************************************/
@@ -149,6 +149,7 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
 	/*                         [2]: buffer addr                          */
 	/*********************************************************************/
 
+	printf("Building control stream");
 	mm2s_current_descriptor_address = HP0_MM2S_DMA_DESCRIPTORS_ADDRESS; // save current descriptor address
 
 	mm2s_descriptor_register_mmap[0x0 >> 2] = HP0_MM2S_DMA_DESCRIPTORS_ADDRESS + 0x40; // set next descriptor address
@@ -219,7 +220,8 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
 	/*                 set current descriptor addresses                  */
 	/*           and start dma operations (S2MM_DMACR.RS = 1)            */
 	/*********************************************************************/
-
+	
+	printf("Setting describer addresses");
 	axi_dma_register_mmap[MM2S_CURDESC>>2] =  mm2s_current_descriptor_address;
 	axi_dma_register_mmap[S2MM_CURDESC>>2] =  s2mm_current_descriptor_address;
 	axi_dma_register_mmap[MM2S_CONTROL_REGISTER >> 2] =  0x1;
@@ -230,6 +232,7 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
 	/*                 (by setting the taildescriptors)                  */
 	/*********************************************************************/
 
+	printf("Start transfer");
 	axi_dma_register_mmap[MM2S_TAILDESC>>2] =  mm2s_tail_descriptor_address;
 	axi_dma_register_mmap[S2MM_TAILDESC>>2] =  s2mm_tail_descriptor_address;
 
@@ -237,6 +240,7 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
 	/*                 wait until all transfers finished                 */
 	/*********************************************************************/
 
+	printf("Wait until finished");
 	while (!controlregister_ok)
     {
 		mm2s_status = axi_dma_register_mmap[MM2S_STATUS_REGISTER >> 2];
@@ -274,6 +278,5 @@ from AXI DMA v7.1 - LogiCORE IP Product Guide http://www.xilinx.com/support/docu
 		printf("\n");
     }
         
-
 	return 0;
 }
